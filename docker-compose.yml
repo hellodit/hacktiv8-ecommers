@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file: .env
+    environment:
+      PORT: "8080"
+      # Postgres runs on the host machine, not in compose.
+      DB_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # makes host.docker.internal work on Linux too
+    restart: unless-stopped

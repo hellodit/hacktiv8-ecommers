@@ -1,0 +1,239 @@
+basePath: /api/v1
+definitions:
+  dto.CheckoutRequest:
+    properties:
+      product_id:
+        example: 1
+        type: integer
+      quantity:
+        example: 2
+        type: integer
+    type: object
+  dto.ErrorResponse:
+    properties:
+      message:
+        example: invalid credentials
+        type: string
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        example: user1@example.com
+        type: string
+      password:
+        example: password123
+        type: string
+    type: object
+  dto.LoginResponse:
+    properties:
+      expires_at:
+        example: 1767225600
+        type: integer
+      token:
+        type: string
+    type: object
+  dto.PaginationMeta:
+    properties:
+      limit:
+        example: 20
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  dto.ProductListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/model.Product'
+        type: array
+      meta:
+        $ref: '#/definitions/dto.PaginationMeta'
+    type: object
+  model.Order:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      product_snapshot:
+        $ref: '#/definitions/model.ProductSnapshot'
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.Product:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        description: in rupiah
+        type: integer
+      stock:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  model.ProductSnapshot:
+    properties:
+      description:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        type: integer
+      product_id:
+        type: integer
+      quantity:
+        type: integer
+      total:
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: Go + Echo + GORM + PostgreSQL + JWT.
+  title: Minimal Ecommerce API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with email & password and receive a JWT.
+      parameters:
+      - description: Credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Login
+      tags:
+      - auth
+  /checkout:
+    post:
+      consumes:
+      - application/json
+      description: Buy a product. Decrements stock and stores an order with a product
+        snapshot.
+      parameters:
+      - description: Product & quantity
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CheckoutRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Order'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Checkout
+      tags:
+      - orders
+  /products:
+    get:
+      description: Paginated list of products, ordered by ID.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page (max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ProductListResponse'
+      summary: List products
+      tags:
+      - products
+  /products/{id}:
+    get:
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Product'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Get product detail
+      tags:
+      - products
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer " followed by the JWT from /auth/login.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
