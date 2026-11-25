@@ -10,6 +10,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const maxQuantity = 100
@@ -17,7 +18,6 @@ const maxQuantity = 100
 var (
 	ErrProductNotFound   = errors.New("product not found")
 	ErrInsufficientStock = errors.New("insufficient stock")
-	errNotImplemented    = errors.New("reserveStock not implemented yet")
 )
 
 type CheckoutHandler struct {
@@ -76,25 +76,32 @@ func (h *CheckoutHandler) Checkout(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	case errors.Is(err, ErrInsufficientStock):
 		return echo.NewHTTPError(http.StatusConflict, err.Error())
-	case errors.Is(err, errNotImplemented):
-		return echo.NewHTTPError(http.StatusNotImplemented, err.Error())
 	case err != nil:
 		return err
 	}
 	return c.JSON(http.StatusCreated, order)
 }
 
-// reserveStock runs INSIDE the checkout transaction. It must:
-//  1. load the product with a row lock (so concurrent checkouts on the same
-//     product wait for each other instead of both reading the same stock),
-//  2. return ErrProductNotFound if it doesn't exist,
-//  3. return ErrInsufficientStock if product.Stock < qty,
-//  4. decrement the stock and return the (pre-decrement-loaded) product.
-//
-// Hints: tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&p, id)
-//
-//	tx.Model(&p).Update("stock", gorm.Expr("stock - ?", qty))
+// reserveStock runs INSIDE the checkout transaction. It locks the product row
+// (SELECT ... FOR UPDATE) so concurrent checkouts on the same product wait for
+// each other instead of both reading the same stock, then validates and
+// decrements the stock. The lock is released on COMMIT/ROLLBACK.
 func reserveStock(tx *gorm.DB, productID uint, qty int) (*model.Product, error) {
-	// TODO(you): implement — see the comment above.
-	return nil, errNotImplemented
+	var p model.Product
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&p, productID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrProductNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if p.Stock < qty {
+		return nil, ErrInsufficientStock
+	}
+
+	if err := tx.Model(&p).Update("stock", gorm.Expr("stock - ?", qty)).Error; err != nil {
+		return nil, err
+	}
+	return &p, nil
 }

@@ -8,7 +8,7 @@ REST API e-commerce (Go 1.27, Echo v4, GORM, PostgreSQL, JWT HS256) untuk demo s
 
 ## Aturan wajib
 
-1. **Jangan implementasikan atau ubah `reserveStock`** di `internal/handler/checkout.go`. Itu latihan untuk user. Selama masih TODO, `POST /api/v1/checkout` memang mengembalikan 501, dan itu bukan bug.
+1. **Jangan hapus row lock di `reserveStock`** (`internal/handler/checkout.go`). `SELECT ... FOR UPDATE` di dalam transaksi checkout itulah yang mencegah overselling saat ada request concurrent.
 2. **Jangan commit `.env`** atau secret apa pun. Variabel baru ditambahkan ke `.env.example` dengan nilai placeholder.
 3. **Jangan edit `docs/` secara manual.** Folder itu hasil generate `make swag`.
 4. **Jangan tambah service Postgres ke `docker-compose.yml`.** Keputusan user: Postgres jalan di host lokal.

@@ -2,8 +2,6 @@
 
 REST API e-commerce sederhana dengan Go, dipakai sebagai studi kasus sesi **"Bikin REST API Golang, dari Ngoding sampai Load Testing"**. Isinya katalog produk publik, login JWT, dan checkout yang wajib login, lengkap dengan Swagger dan load test k6.
 
-> **Status:** endpoint checkout masih mengembalikan `501 Not Implemented`. Fungsi `reserveStock` di `internal/handler/checkout.go` sengaja dibiarkan TODO sebagai latihan.
-
 ## Stack
 
 | Komponen | Versi |
@@ -77,7 +75,7 @@ Base URL: `http://localhost:8080/api/v1` · Swagger UI: `http://localhost:8080/s
 | POST | `/auth/login` | – | Login, dapat JWT | 200, 400, 401 |
 | GET | `/products?page=1&limit=20` | – | List produk (limit maks 100, urut id) | 200 |
 | GET | `/products/:id` | – | Detail produk | 200, 400, 404 |
-| POST | `/checkout` | Bearer JWT | Beli satu produk, `quantity` 1–100 | 201, 400, 401, 404, 409 (saat ini 501) |
+| POST | `/checkout` | Bearer JWT | Beli satu produk, `quantity` 1–100 | 201, 400, 401, 404, 409 |
 
 Format error: `{"message": "..."}`.
 
@@ -95,7 +93,7 @@ curl -X POST localhost:8080/api/v1/auth/login \
 # List produk
 curl 'localhost:8080/api/v1/products?page=1&limit=20'
 
-# Checkout (saat ini masih 501)
+# Checkout (TOKEN dari response login)
 curl -X POST localhost:8080/api/v1/checkout \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
@@ -110,9 +108,11 @@ curl -X POST localhost:8080/api/v1/checkout \
 
 `orders` sengaja tidak punya FK ke `products`. Saat checkout, data produk (nama, harga, qty, total) dibekukan ke `product_snapshot`, jadi riwayat order tidak ikut berubah kalau produknya berubah.
 
-### Alur checkout (target implementasi)
+### Alur checkout
 
-JWT middleware → ambil `user_id` dari claim `sub` → `BEGIN` → `SELECT ... FOR UPDATE` baris produk → stok kurang? `409` → kurangi stok → insert order beserta snapshot → `COMMIT` → `201`.
+JWT middleware → ambil `user_id` dari claim `sub` → `BEGIN` → `SELECT ... FOR UPDATE` baris produk (`reserveStock`) → stok kurang? `409` → `UPDATE stock = stock - qty` → insert order beserta snapshot → `COMMIT` → `201`.
+
+Row lock `FOR UPDATE` membuat checkout yang bersamaan pada produk yang sama mengantre, sehingga stok tidak bisa terjual melebihi jumlahnya (overselling).
 
 ## Load test
 
